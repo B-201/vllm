@@ -1110,6 +1110,27 @@ class GPUModelRunnerBase(ModelRunnerBase[TModelInputForGPU]):
                 max_pos_embeddings = (
                     self.model.config.text_config.max_position_embeddings)
 
+            # TODO Duplicate code with profile_run
+            mm_max_num_seqs=None
+            mm_max_num_batched_tokens=None
+            max_num_batched_tokens = self.scheduler_config.max_num_batched_tokens
+            max_num_seqs = self.scheduler_config.max_num_seqs
+
+            max_mm_tokens = self.mm_registry.get_max_multimodal_tokens(
+                self.model_config)
+            if max_mm_tokens > 0:
+                max_num_seqs_orig = max_num_seqs
+                mm_max_num_seqs = min(max_num_seqs,
+                                max_num_batched_tokens // max_mm_tokens)
+                if mm_max_num_seqs < 1:
+                    expr = (f"min({max_num_seqs_orig}, "
+                            f"{max_num_batched_tokens} // {max_mm_tokens})")
+                    logger.warning(
+                        "Computed mm_max_num_seqs (%s) to be less than 1. "
+                        "Setting it to the minimum value of 1.", expr)
+                    mm_max_num_seqs = 1
+                mm_max_num_batched_tokens = mm_max_num_seqs * max_mm_tokens
+
             self.lora_manager = LRUCacheWorkerLoRAManager(
                 self.scheduler_config.max_num_seqs,
                 self.scheduler_config.max_num_batched_tokens,
@@ -1119,6 +1140,9 @@ class GPUModelRunnerBase(ModelRunnerBase[TModelInputForGPU]):
                 self.model.embedding_modules,
                 self.model.embedding_padding_modules,
                 max_position_embeddings=max_pos_embeddings,
+                # for vision encoder
+                mm_max_num_seqs=mm_max_num_seqs,
+                mm_max_num_batched_tokens=mm_max_num_batched_tokens,
             )
             self.model = self.lora_manager.create_lora_manager(self.model)
 

@@ -37,6 +37,8 @@ class WorkerLoRAManager(AbstractWorkerManager):
         embedding_padding_modules: List[str],
         lora_model_cls: Type[LoRAModel] = LoRAModel,
         max_position_embeddings: Optional[int] = None,
+        mm_max_num_seqs: Optional[int] = None,
+        mm_max_num_batched_tokens: Optional[int] = None,
     ):
         self._lora_model_cls = lora_model_cls
         self.embedding_modules = embedding_modules
@@ -47,6 +49,8 @@ class WorkerLoRAManager(AbstractWorkerManager):
         self.vocab_size = vocab_size
         self.lora_config = lora_config
         self.max_position_embeddings = max_position_embeddings
+        self.mm_max_num_seqs = mm_max_num_seqs
+        self.mm_max_num_batched_tokens = mm_max_num_batched_tokens
         super().__init__(device)
         # Lazily initialized by create_lora_manager.
         self._adapter_manager: LoRAModelManager
@@ -179,6 +183,8 @@ class LRUCacheWorkerLoRAManager(WorkerLoRAManager):
             lora_config=self.lora_config,
             device=self.device,
             max_num_batched_tokens=self.max_num_batched_tokens,
+            mm_max_num_seqs = self.mm_max_num_seqs,
+            mm_max_num_batched_tokens = self.mm_max_num_batched_tokens,
         )
         self._adapter_manager = lora_manager
         return lora_manager.model

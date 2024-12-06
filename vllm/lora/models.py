@@ -311,6 +311,8 @@ class LoRAModelManager(AdapterModelManager):
         vocab_size: int,
         lora_config: LoRAConfig,
         device: torch.device,
+        mm_max_num_seqs: Optional[int] = None,
+        mm_max_num_batched_tokens: Optional[int] = None,
     ):
         """Create a LoRAModelManager and adapter for a given model.
 
@@ -353,6 +355,10 @@ class LoRAModelManager(AdapterModelManager):
             # In case the model only supports LoRA for
             # text modules (e.g. ChatGLM)
             and hasattr(self.model, "get_mm_mapping"))
+        if self.supports_mm:
+            self.mm_punica_wrapper = PunicaWrapper(mm_max_num_batched_tokens,
+                                                   mm_max_num_seqs,
+                                                   device=self.device)
         self.packed_modules: Dict[str, List[str]] = {}
         self.modules: Dict[str, BaseLayerWithLoRA] = {}
         # Dict instead of a Set for compatibility with LRUCache.
@@ -681,9 +687,12 @@ class LRUCacheLoRAModelManager(LoRAModelManager):
 
     def __init__(self, model: nn.Module, max_num_seqs: int,
                  max_num_batched_tokens: int, vocab_size: int,
-                 lora_config: LoRAConfig, device: torch.device):
+                 lora_config: LoRAConfig, device: torch.device,
+                 mm_max_num_seqs: Optional[int] = None,
+                 mm_max_num_batched_tokens: Optional[int] = None, ):
         super().__init__(model, max_num_seqs, max_num_batched_tokens,
-                         vocab_size, lora_config, device)
+                         vocab_size, lora_config, device, 
+                         mm_max_num_seqs, mm_max_num_batched_tokens)
         self._registered_adapters: LoRALRUCache = LoRALRUCache(
             self.capacity, self.deactivate_adapter)
         self._active_adapters: LoRALRUCache = LoRALRUCache(
