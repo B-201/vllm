@@ -183,8 +183,8 @@ class LRUCacheWorkerLoRAManager(WorkerLoRAManager):
             lora_config=self.lora_config,
             device=self.device,
             max_num_batched_tokens=self.max_num_batched_tokens,
-            mm_max_num_seqs = self.mm_max_num_seqs,
-            mm_max_num_batched_tokens = self.mm_max_num_batched_tokens,
+            mm_max_num_seqs=self.mm_max_num_seqs,
+            mm_max_num_batched_tokens=self.mm_max_num_batched_tokens,
         )
         self._adapter_manager = lora_manager
         return lora_manager.model

@@ -660,6 +660,9 @@ class PunicaWrapper:
             buffer (Optional[Tuple[torch.Tensor, ...]]): Defaults to None.
         """
 
+        y_org = y
+        y = y.view(-1, y.shape[-1])
+        x = x.view(-1, x.shape[-1])
         assert len(lora_a_stacked) == len(lora_b_stacked) == len(output_slices)
         if lora_bias_stacked is not None:
             assert len(lora_bias_stacked) == len(output_slices)
@@ -681,6 +684,7 @@ class PunicaWrapper:
                         None,
                         output_slices,
                         add_input=True)
+        y = y.view_as(y_org)
 
     def add_lora_logits(self,
                         y: torch.Tensor,

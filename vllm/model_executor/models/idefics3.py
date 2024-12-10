@@ -770,3 +770,16 @@ class Idefics3ForConditionalGeneration(nn.Module, SupportsMultiModal,
             language_model="model.text_model",
             connector="model.connector",
             tower_model="model.vision_model")
+
+    def get_embedding_size(self, pixel_vaules):
+        embedding_size = 0
+        for pixel_vaule in pixel_vaules:
+            num_images, num_channels, height, width = pixel_vaule.shape[-4:]
+
+            max_nb_patches_h, max_nb_patches_w = (
+                height // self.config.vision_config.patch_size,
+                width // self.config.vision_config.patch_size,
+            )
+            embedding_size += max_nb_patches_h * max_nb_patches_w * num_images
+
+        return embedding_size

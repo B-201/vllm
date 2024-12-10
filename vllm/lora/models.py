@@ -356,9 +356,12 @@ class LoRAModelManager(AdapterModelManager):
             # text modules (e.g. ChatGLM)
             and hasattr(self.model, "get_mm_mapping"))
         if self.supports_mm:
-            self.mm_punica_wrapper = PunicaWrapper(mm_max_num_batched_tokens,
+            self.mm_punica_wrapper = PunicaWrapper(mm_max_num_batched_tokens *
+                                                   4,
                                                    mm_max_num_seqs,
                                                    device=self.device)
+        else:
+            self.mm_punica_wrapper = None
         self.packed_modules: Dict[str, List[str]] = {}
         self.modules: Dict[str, BaseLayerWithLoRA] = {}
         # Dict instead of a Set for compatibility with LRUCache.
@@ -462,6 +465,24 @@ class LoRAModelManager(AdapterModelManager):
             self.long_lora_context,
         )
 
+        # update multimodal lora states
+        if self.mm_punica_wrapper is not None and mapping.is_prefill:
+            new_index_mapping = []
+            multimodal_mapping = mapping.multimodal_mapping
+            for pixel_values, index in zip(multimodal_mapping,
+                                           mapping.prompt_mapping):
+                new_index_mapping.extend(
+                    [index] * self.model.get_embedding_size(pixel_values))
+            mapping.index_mapping = tuple(new_index_mapping)
+            self.mm_punica_wrapper.update_metadata(
+                mapping,
+                self.lora_index_to_id,
+                self.lora_slots + 1,
+                self.vocab_size,
+                self.lora_config.lora_extra_vocab_size,
+                self.long_lora_context,
+            )
+
     def remove_all_adapters(self):
         """Remove all LoRAModels from the manager."""
         self._registered_adapters.clear()
@@ -477,13 +498,15 @@ class LoRAModelManager(AdapterModelManager):
                 continue
             # A temporary approach for multimodal models to support LoRA
             # TODO: Remove this restriction
+            is_mm_module = False
             if self._filter_unsupported_mm_module(module_name):
                 logger.warning(
                     "Regarding multimodal models, vLLM currently only supports "
                     "adding LoRA to language model, %s will be ignored.",
                     module_name,
                 )
-                continue
+                # continue
+                is_mm_module = True
             parts = module_name.split(".")[-1]
             packed_moduled_lst = self.packed_modules_mapping.get(parts, [])
             new_module = replace_submodule(
@@ -520,7 +543,10 @@ class LoRAModelManager(AdapterModelManager):
             self.register_module(module_name, new_module)
             self._register_packed_modules(module_name)
             # All lora layers share the same punica_wrapper based on reference.
-            new_module.set_mapping(self.punica_wrapper)
+            if not is_mm_module:
+                new_module.set_mapping(self.punica_wrapper)
+            else:
+                new_module.set_mapping(self.mm_punica_wrapper)
 
     def register_module(self, module_name: str, module: "BaseLayerWithLoRA"):
         assert isinstance(module, BaseLayerWithLoRA)
@@ -685,14 +711,20 @@ class LoRALRUCache(AdapterLRUCache[LoRAModel]):
 class LRUCacheLoRAModelManager(LoRAModelManager):
     """A model manager that manages multiple LoRAs with LRU cache."""
 
-    def __init__(self, model: nn.Module, max_num_seqs: int,
-                 max_num_batched_tokens: int, vocab_size: int,
-                 lora_config: LoRAConfig, device: torch.device,
-                 mm_max_num_seqs: Optional[int] = None,
-                 mm_max_num_batched_tokens: Optional[int] = None, ):
+    def __init__(
+        self,
+        model: nn.Module,
+        max_num_seqs: int,
+        max_num_batched_tokens: int,
+        vocab_size: int,
+        lora_config: LoRAConfig,
+        device: torch.device,
+        mm_max_num_seqs: Optional[int] = None,
+        mm_max_num_batched_tokens: Optional[int] = None,
+    ):
         super().__init__(model, max_num_seqs, max_num_batched_tokens,
-                         vocab_size, lora_config, device, 
-                         mm_max_num_seqs, mm_max_num_batched_tokens)
+                         vocab_size, lora_config, device, mm_max_num_seqs,
+                         mm_max_num_batched_tokens)
         self._registered_adapters: LoRALRUCache = LoRALRUCache(
             self.capacity, self.deactivate_adapter)
         self._active_adapters: LoRALRUCache = LoRALRUCache(

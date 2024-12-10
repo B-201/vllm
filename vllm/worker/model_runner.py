@@ -929,10 +929,17 @@ class ModelInputForGPUBuilder(ModelRunnerInputBuilderBase[ModelInputForGPU]):
                 flatten_2d_lists(inter_data.lora_prompt_mapping)
                 for inter_data in self.inter_data_list
             ])
+            # for multi-modal LoRA
+            lora_multimodal_mapping = [
+                inter_data.multi_modal_kwargs["pixel_values"]
+                if inter_data.multi_modal_kwargs is not None else None
+                for inter_data in self.inter_data_list
+            ]
 
             lora_mapping = LoRAMapping(
                 **dict(index_mapping=lora_index_mapping,
                        prompt_mapping=lora_prompt_mapping,
+                       multimodal_mapping=tuple(lora_multimodal_mapping),
                        is_prefill=not self.decode_only))
 
         # Prompt adapter data.
@@ -1111,9 +1118,10 @@ class GPUModelRunnerBase(ModelRunnerBase[TModelInputForGPU]):
                     self.model.config.text_config.max_position_embeddings)
 
             # TODO Duplicate code with profile_run
-            mm_max_num_seqs=None
-            mm_max_num_batched_tokens=None
-            max_num_batched_tokens = self.scheduler_config.max_num_batched_tokens
+            mm_max_num_seqs = None
+            mm_max_num_batched_tokens = None
+            max_num_batched_tokens = \
+                self.scheduler_config.max_num_batched_tokens
             max_num_seqs = self.scheduler_config.max_num_seqs
 
             max_mm_tokens = self.mm_registry.get_max_multimodal_tokens(
@@ -1121,7 +1129,7 @@ class GPUModelRunnerBase(ModelRunnerBase[TModelInputForGPU]):
             if max_mm_tokens > 0:
                 max_num_seqs_orig = max_num_seqs
                 mm_max_num_seqs = min(max_num_seqs,
-                                max_num_batched_tokens // max_mm_tokens)
+                                      max_num_batched_tokens // max_mm_tokens)
                 if mm_max_num_seqs < 1:
                     expr = (f"min({max_num_seqs_orig}, "
                             f"{max_num_batched_tokens} // {max_mm_tokens})")
