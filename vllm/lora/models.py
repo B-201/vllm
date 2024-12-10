@@ -356,10 +356,11 @@ class LoRAModelManager(AdapterModelManager):
             # text modules (e.g. ChatGLM)
             and hasattr(self.model, "get_mm_mapping"))
         if self.supports_mm:
-            self.mm_punica_wrapper = PunicaWrapper(mm_max_num_batched_tokens *
-                                                   4,
-                                                   mm_max_num_seqs,
-                                                   device=self.device)
+            self.mm_punica_wrapper = get_punica_wrapper(
+                mm_max_num_batched_tokens * 4,
+                mm_max_num_seqs,
+                device=self.device,
+            )
         else:
             self.mm_punica_wrapper = None
         self.packed_modules: Dict[str, List[str]] = {}
